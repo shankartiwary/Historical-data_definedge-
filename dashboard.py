@@ -29,7 +29,8 @@ def download_and_process_master_file():
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         csv_filename = z.namelist()[0]
         with z.open(csv_filename) as f:
-            df = pd.read_csv(f, header=None)
+            # Read all columns as strings to prevent data type mismatches
+            df = pd.read_csv(f, header=None, dtype=str)
             df.columns = ['SEGMENT', 'TOKEN', 'SYMBOL', 'TRADINGSYM', 'INSTRUMENT TYPE', 'EXPIRY', 'TICKSIZE', 'LOTSIZE', 'OPTIONTYPE', 'STRIKE', 'PRICEPREC', 'MULTIPLIER', 'ISIN', 'PRICEMULT', 'COMPANY']
             return df
 
@@ -41,8 +42,8 @@ def get_nifty50_historical_data(master_df, session_key):
     response = requests.get(url, headers={'Authorization': session_key})
     response.raise_for_status()
     df = pd.DataFrame([row.split(',') for row in response.text.strip().split('\n')], columns=['Dateandtime', 'Open', 'High', 'Low', 'Close', 'Volume', 'OI'])
-    # Explicitly set the date format to prevent UserWarning
-    df['Dateandtime'] = pd.to_datetime(df['Dateandtime'], format='%d%m%Y', errors='coerce')
+    # Allow pandas to auto-detect the date format from the API response
+    df['Dateandtime'] = pd.to_datetime(df['Dateandtime'])
     return df
 
 def get_option_chain(master_df, symbol, expiry_date, conn):
