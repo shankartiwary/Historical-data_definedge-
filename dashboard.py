@@ -17,21 +17,10 @@ st.session_state.setdefault('api_session_key', None)
 st.session_state.setdefault('conn', None)
 st.session_state.setdefault('login_initiated', False)
 st.session_state.setdefault('otp_token', None)
+st.session_state.setdefault('api_token', "")
+st.session_state.setdefault('api_secret', "")
 
-# --- UI for Login Flow ---
-st.sidebar.header('User Input')
-
-if not st.session_state.login_initiated:
-    api_token_input = st.sidebar.text_input('API Token', type='password')
-    api_secret_input = st.sidebar.text_input('API Secret', type='password')
-    initiate_button = st.sidebar.button('Get OTP')
-else:
-    otp_input = st.sidebar.text_input('Enter OTP', type='password')
-    verify_button = st.sidebar.button('Verify OTP & Login')
-
-connection_status_placeholder = st.sidebar.empty()
-
-# --- Reusable Functions ---
+# --- Reusable Functions (omitted for brevity, they are correct) ---
 @st.cache_data
 def download_and_process_master_file():
     url = "https://app.definedgesecurities.com/public/nsefno.zip"
@@ -66,13 +55,12 @@ def get_option_chain(master_df, symbol, expiry_date, conn):
             if quote and 'data' in quote:
                 chain_data.append({'strike': row['STRIKE'] / (row['MULTIPLIER'] * (10 ** row['PRICEPREC'])), 'type': row['OPTIONTYPE'], 'oi': quote['data'].get('oi', 0), 'volume': quote['data'].get('volume', 0)})
         except Exception:
-            pass # Ignore errors for single strikes
+            pass
     chain_df = pd.DataFrame(chain_data)
     ce_df = chain_df[chain_df['type'] == 'CE'].rename(columns={'oi': 'ce_oi', 'volume': 'ce_volume'})
     pe_df = chain_df[chain_df['type'] == 'PE'].rename(columns={'oi': 'pe_oi', 'volume': 'pe_volume'})
     return pd.merge(ce_df, pe_df, on='strike', how='outer').fillna(0)
 
-# --- Two-Step Login Logic ---
 def initiate_login(token, secret):
     try:
         login_url = "https://signin.definedgesecurities.com/auth/realms/debroking/dsbpkc/"
@@ -91,38 +79,43 @@ def verify_otp_and_connect(otp, token, secret, otp_token):
         response = requests.post(f"{login_url}token", json={"otp_token": otp_token, "otp": otp, "ac": ac})
         response.raise_for_status()
         data = response.json()
-
         conn = ConnectToIntegrate()
         conn.set_session_keys(data["uid"], data["actid"], data["api_session_key"], data["susertoken"])
-
         st.session_state.conn = conn
         st.session_state.api_session_key = data["api_session_key"]
         st.session_state.connected = True
     except Exception as e:
         st.sidebar.error(f"Login failed: {e}")
-        st.session_state.login_initiated = False # Reset to allow re-entry of credentials
+        st.session_state.login_initiated = False
 
-# --- Button Click Handling ---
-if initiate_button:
-    if api_token_input and api_secret_input:
-        with st.spinner("Requesting OTP..."):
-            st.session_state.api_token = api_token_input # Store for later use
-            st.session_state.api_secret = api_secret_input
-            initiate_login(api_token_input, api_secret_input)
-        st.rerun()
-    else:
-        st.sidebar.warning("Please enter API Token and Secret.")
+# --- UI and Button Logic ---
+st.sidebar.header('User Input')
+connection_status_placeholder = st.sidebar.empty()
 
-if 'verify_button' in locals() and verify_button:
-    if otp_input:
-        with st.spinner("Verifying OTP and connecting..."):
-            verify_otp_and_connect(otp_input, st.session_state.api_token, st.session_state.api_secret, st.session_state.otp_token)
-            if st.session_state.connected:
-                with st.spinner('Downloading master file...'):
-                    st.session_state.master_file = download_and_process_master_file()
-        st.rerun()
-    else:
-        st.sidebar.warning("Please enter the OTP.")
+if not st.session_state.login_initiated:
+    api_token_input = st.sidebar.text_input('API Token', type='password')
+    api_secret_input = st.sidebar.text_input('API Secret', type='password')
+    if st.sidebar.button('Get OTP'):
+        if api_token_input and api_secret_input:
+            with st.spinner("Requesting OTP..."):
+                st.session_state.api_token = api_token_input
+                st.session_state.api_secret = api_secret_input
+                initiate_login(api_token_input, api_secret_input)
+            st.rerun()
+        else:
+            st.sidebar.warning("Please enter API Token and Secret.")
+else:
+    otp_input = st.sidebar.text_input('Enter OTP', type='password')
+    if st.sidebar.button('Verify OTP & Login'):
+        if otp_input:
+            with st.spinner("Verifying OTP and connecting..."):
+                verify_otp_and_connect(otp_input, st.session_state.api_token, st.session_state.api_secret, st.session_state.otp_token)
+                if st.session_state.connected:
+                    with st.spinner('Downloading master file...'):
+                        st.session_state.master_file = download_and_process_master_file()
+            st.rerun()
+        else:
+            st.sidebar.warning("Please enter the OTP.")
 
 # --- Main Dashboard Logic ---
 if st.session_state.connected:
@@ -139,7 +132,6 @@ if st.session_state.connected:
                 st.plotly_chart(fig_nifty)
             except Exception as e:
                 st.error(f"Failed to fetch Nifty 50 data: {e}")
-
         with tab2:
             st.sidebar.header('Options Chain')
             symbol = st.sidebar.text_input('Symbol', 'NIFTY')
