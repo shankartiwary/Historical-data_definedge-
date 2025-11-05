@@ -41,7 +41,8 @@ def get_nifty50_historical_data(master_df, session_key):
     response = requests.get(url, headers={'Authorization': session_key})
     response.raise_for_status()
     df = pd.DataFrame([row.split(',') for row in response.text.strip().split('\n')], columns=['Dateandtime', 'Open', 'High', 'Low', 'Close', 'Volume', 'OI'])
-    df['Dateandtime'] = pd.to_datetime(df['Dateandtime'])
+    # Explicitly set the date format to prevent UserWarning
+    df['Dateandtime'] = pd.to_datetime(df['Dateandtime'], format='%d%m%Y', errors='coerce')
     return df
 
 def get_option_chain(master_df, symbol, expiry_date, conn):
