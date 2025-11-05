@@ -42,8 +42,8 @@ def get_nifty50_historical_data(master_df, session_key):
     response = requests.get(url, headers={'Authorization': session_key})
     response.raise_for_status()
     df = pd.DataFrame([row.split(',') for row in response.text.strip().split('\n')], columns=['Dateandtime', 'Open', 'High', 'Low', 'Close', 'Volume', 'OI'])
-    # Allow pandas to auto-detect the date format from the API response
-    df['Dateandtime'] = pd.to_datetime(df['Dateandtime'])
+    # Explicitly set the date format to prevent UserWarning and improve performance
+    df['Dateandtime'] = pd.to_datetime(df['Dateandtime'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
     return df
 
 def get_option_chain(master_df, symbol, expiry_date, conn):
