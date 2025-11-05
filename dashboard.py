@@ -58,7 +58,7 @@ if api_token and api_secret and symbol and expiry_date:
         st.header('Noodle Chart for Strike Prices')
         fig_noodle = go.Figure()
         fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['ce_oi'], mode='lines+markers', name='Call OI'))
-        fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['pe_oi'],.
+        fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['pe_oi'],
 
                                         mode='lines+markers', name='Put OI'))
         fig_noodle.update_layout(xaxis_title='Strike Price', yaxis_title='Open Interest')
