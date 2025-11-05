@@ -29,7 +29,6 @@ def download_and_process_master_file():
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         csv_filename = z.namelist()[0]
         with z.open(csv_filename) as f:
-            # Read all columns as strings to prevent data type mismatches
             df = pd.read_csv(f, header=None, dtype=str)
             df.columns = ['SEGMENT', 'TOKEN', 'SYMBOL', 'TRADINGSYM', 'INSTRUMENT TYPE', 'EXPIRY', 'TICKSIZE', 'LOTSIZE', 'OPTIONTYPE', 'STRIKE', 'PRICEPREC', 'MULTIPLIER', 'ISIN', 'PRICEMULT', 'COMPANY']
             return df
@@ -41,8 +40,8 @@ def get_nifty50_historical_data(master_df, session_key):
     url = f"https://data.definedgesecurities.com/sds/history/NFO/{token}/day/{from_date.strftime('%d%m%Y%H%M')}/{to_date.strftime('%d%m%Y%H%M')}"
     response = requests.get(url, headers={'Authorization': session_key})
     response.raise_for_status()
-    df = pd.DataFrame([row.split(',') for row in response.text.strip().split('\n')], columns=['Dateandtime', 'Open', 'High', 'Low', 'Close', 'Volume', 'OI'])
-    # Explicitly set the date format to prevent UserWarning and improve performance
+    raw_data = response.text.strip().split('\n')
+    df = pd.DataFrame([row.split(',') for row in raw_data], columns=['Dateandtime', 'Open', 'High', 'Low', 'Close', 'Volume', 'OI'])
     df['Dateandtime'] = pd.to_datetime(df['Dateandtime'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
     return df
 
@@ -60,9 +59,10 @@ def get_option_chain(master_df, symbol, expiry_date, conn):
         try:
             quote = ic.quotes(exchange='NFO', trading_symbol=row['TRADINGSYM'])
             if quote and 'data' in quote:
-                chain_data.append({'strike': row['STRIKE'] / (row['MULTIPLIER'] * (10 ** row['PRICEPREC'])), 'type': row['OPTIONTYPE'], 'oi': quote['data'].get('oi', 0), 'volume': quote['data'].get('volume', 0)})
+                strike_price = float(row['STRIKE']) / (float(row['MULTIPLIER']) * (10 ** float(row['PRICEPREC'])))
+                chain_data.append({'strike': strike_price, 'type': row['OPTIONTYPE'], 'oi': quote['data'].get('oi', 0), 'volume': quote['data'].get('volume', 0)})
         except Exception:
-            pass # Ignore errors for single strikes
+            pass
 
     if not chain_data:
         st.warning("Could not fetch any option chain data. The market may be closed or data may be unavailable.")
@@ -73,6 +73,7 @@ def get_option_chain(master_df, symbol, expiry_date, conn):
     pe_df = chain_df[chain_df['type'] == 'PE'].rename(columns={'oi': 'pe_oi', 'volume': 'pe_volume'})
     return pd.merge(ce_df, pe_df, on='strike', how='outer').fillna(0)
 
+# ... (rest of the file is the same)
 def initiate_login(token, secret):
     try:
         login_url = "https://signin.definedgesecurities.com/auth/realms/debroking/dsbpkc/"
