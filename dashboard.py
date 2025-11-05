@@ -20,7 +20,7 @@ st.session_state.setdefault('otp_token', None)
 st.session_state.setdefault('api_token', "")
 st.session_state.setdefault('api_secret', "")
 
-# --- Reusable Functions (omitted for brevity, they are correct) ---
+# --- Reusable Functions ---
 @st.cache_data
 def download_and_process_master_file():
     url = "https://app.definedgesecurities.com/public/nsefno.zip"
@@ -47,6 +47,11 @@ def get_nifty50_historical_data(master_df, session_key):
 def get_option_chain(master_df, symbol, expiry_date, conn):
     expiry_str = expiry_date.strftime('%d%m%Y')
     options_df = master_df[(master_df['SYMBOL'] == symbol) & (master_df['EXPIRY'] == expiry_str) & (master_df['INSTRUMENT TYPE'] == 'OPTIDX')]
+
+    if options_df.empty:
+        st.warning("No options found for the selected symbol and expiry date.")
+        return pd.DataFrame()
+
     ic = IntegrateData(conn)
     chain_data = []
     for _, row in options_df.iterrows():
@@ -55,7 +60,12 @@ def get_option_chain(master_df, symbol, expiry_date, conn):
             if quote and 'data' in quote:
                 chain_data.append({'strike': row['STRIKE'] / (row['MULTIPLIER'] * (10 ** row['PRICEPREC'])), 'type': row['OPTIONTYPE'], 'oi': quote['data'].get('oi', 0), 'volume': quote['data'].get('volume', 0)})
         except Exception:
-            pass
+            pass # Ignore errors for single strikes
+
+    if not chain_data:
+        st.warning("Could not fetch any option chain data. The market may be closed or data may be unavailable.")
+        return pd.DataFrame()
+
     chain_df = pd.DataFrame(chain_data)
     ce_df = chain_df[chain_df['type'] == 'CE'].rename(columns={'oi': 'ce_oi', 'volume': 'ce_volume'})
     pe_df = chain_df[chain_df['type'] == 'PE'].rename(columns={'oi': 'pe_oi', 'volume': 'pe_volume'})
