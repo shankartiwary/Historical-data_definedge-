@@ -2,28 +2,36 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 
-st.title('Options Data Dashboard')
+st.title('Financial Data Dashboard')
 
 st.sidebar.header('User Input')
 api_token = st.sidebar.text_input('API Token', type='password')
 api_secret = st.sidebar.text_input('API Secret', type='password')
-symbol = st.sidebar.text_input('Symbol', 'NIFTY')
-expiry_date = st.sidebar.date_input('Expiry Date', value=datetime.today())
+
+connection_status_placeholder = st.sidebar.empty()
+
+def check_broker_connection(token, secret):
+    """Simulates a broker connection check."""
+    if token and secret:
+        time.sleep(1)
+        return True
+    return False
+
+def get_nifty50_historical_data():
+    """Placeholder for fetching Nifty 50 historical data."""
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=30)
+    dates = pd.to_datetime(pd.date_range(start=start_date, end=end_date, freq='D'))
+    prices = pd.Series(range(len(dates))) + 17000 + (pd.Series(range(len(dates))).cumsum())
+
+    data = {'date': dates, 'price': prices}
+    return pd.DataFrame(data)
 
 def get_option_chain(symbol, expiry_date):
-    # This is a placeholder for the actual API call
-    # The user would need to find the correct URL and parameters
-    # from the Definedge API documentation.
-    # For example:
-    # url = f"https://integrate.definedgesecurities.com/dart/v1/optionchain?symbol={symbol}&expiry={expiry_date}"
-    # headers = {'Authorization': f'Bearer {api_token}'}
-    # response = requests.get(url, headers=headers)
-    # data = response.json()
-    # return pd.DataFrame(data)
-
-    # Using dummy data since the actual API call is not known
+    """Placeholder for fetching option chain data."""
     dummy_data = {
         'strike': [17000, 17100, 17200, 17300, 17400, 17500],
         'ce_oi': [100000, 120000, 150000, 130000, 110000, 90000],
@@ -33,38 +41,59 @@ def get_option_chain(symbol, expiry_date):
     }
     return pd.DataFrame(dummy_data)
 
+if api_token and api_secret:
+    if check_broker_connection(api_token, api_secret):
+        connection_status_placeholder.success("🟢 Connected to Broker")
 
-if api_token and api_secret and symbol and expiry_date:
-    try:
-        df = get_option_chain(symbol, expiry_date.strftime('%Y-%m-%d'))
+        tab1, tab2 = st.tabs(["Nifty 50", "Options Chain"])
 
-        # Open Interest Plot
-        st.header('Open Interest')
-        fig_oi = go.Figure()
-        fig_oi.add_trace(go.Bar(x=df['strike'], y=df['ce_oi'], name='Call OI'))
-        fig_oi.add_trace(go.Bar(x=df['strike'], y=df['pe_oi'], name='Put OI'))
-        fig_oi.update_layout(barmode='group', xaxis_title='Strike Price', yaxis_title='Open Interest')
-        st.plotly_chart(fig_oi)
+        with tab1:
+            st.header('Nifty 50 Historical Data (Last 30 Days)')
+            nifty_data = get_nifty50_historical_data()
+            st.dataframe(nifty_data)
 
-        # Volume Plot
-        st.header('Volume')
-        fig_vol = go.Figure()
-        fig_vol.add_trace(go.Bar(x=df['strike'], y=df['ce_volume'], name='Call Volume'))
-        fig_vol.add_trace(go.Bar(x=df['strike'], y=df['pe_volume'], name='Put Volume'))
-        fig_vol.update_layout(barmode='group', xaxis_title='Strike Price', yaxis_title='Volume')
-        st.plotly_chart(fig_vol)
+            fig_nifty = go.Figure()
+            fig_nifty.add_trace(go.Scatter(x=nifty_data['date'], y=nifty_data['price'], mode='lines', name='Nifty 50'))
+            fig_nifty.update_layout(xaxis_title='Date', yaxis_title='Price')
+            st.plotly_chart(fig_nifty)
 
-        # Noodle Chart (Strike Price vs. OI)
-        st.header('Noodle Chart for Strike Prices')
-        fig_noodle = go.Figure()
-        fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['ce_oi'], mode='lines+markers', name='Call OI'))
-        fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['pe_oi'],
+        with tab2:
+            st.sidebar.header('Options Chain')
+            symbol = st.sidebar.text_input('Symbol', 'NIFTY')
+            expiry_date = st.sidebar.date_input('Expiry Date', value=datetime.today())
 
-                                        mode='lines+markers', name='Put OI'))
-        fig_noodle.update_layout(xaxis_title='Strike Price', yaxis_title='Open Interest')
-        st.plotly_chart(fig_noodle)
+            if symbol and expiry_date:
+                try:
+                    df = get_option_chain(symbol, expiry_date.strftime('%Y-%m-%d'))
 
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+                    st.header(f'Options Data for {symbol}')
+                    # Open Interest Plot
+                    st.subheader('Open Interest')
+                    fig_oi = go.Figure()
+                    fig_oi.add_trace(go.Bar(x=df['strike'], y=df['ce_oi'], name='Call OI'))
+                    fig_oi.add_trace(go.Bar(x=df['strike'], y=df['pe_oi'], name='Put OI'))
+                    fig_oi.update_layout(barmode='group', xaxis_title='Strike Price', yaxis_title='Open Interest')
+                    st.plotly_chart(fig_oi)
+
+                    # Volume Plot
+                    st.subheader('Volume')
+                    fig_vol = go.Figure()
+                    fig_vol.add_trace(go.Bar(x=df['strike'], y=df['ce_volume'], name='Call Volume'))
+                    fig_vol.add_trace(go.Bar(x=df['strike'], y=df['pe_volume'], name='Put Volume'))
+                    fig_vol.update_layout(barmode='group', xaxis_title='Strike Price', yaxis_title='Volume')
+                    st.plotly_chart(fig_vol)
+
+                    # Noodle Chart (Strike Price vs. OI)
+                    st.subheader('Noodle Chart for Strike Prices')
+                    fig_noodle = go.Figure()
+                    fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['ce_oi'], mode='lines+markers', name='Call OI'))
+                    fig_noodle.add_trace(go.Scatter(x=df['strike'], y=df['pe_oi'], mode='lines+markers', name='Put OI'))
+                    fig_noodle.update_layout(xaxis_title='Strike Price', yaxis_title='Open Interest')
+                    st.plotly_chart(fig_noodle)
+
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
+    else:
+        connection_status_placeholder.error("🔴 Disconnected")
 else:
-    st.info('Please enter your API credentials, a symbol, and select an expiry date.')
+    connection_status_placeholder.info("🟡 Enter API credentials to connect.")
