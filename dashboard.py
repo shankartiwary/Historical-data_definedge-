@@ -109,7 +109,7 @@ if initiate_button:
             st.session_state.api_token = api_token_input # Store for later use
             st.session_state.api_secret = api_secret_input
             initiate_login(api_token_input, api_secret_input)
-        st.experimental_rerun()
+        st.rerun()
     else:
         st.sidebar.warning("Please enter API Token and Secret.")
 
@@ -120,7 +120,7 @@ if 'verify_button' in locals() and verify_button:
             if st.session_state.connected:
                 with st.spinner('Downloading master file...'):
                     st.session_state.master_file = download_and_process_master_file()
-        st.experimental_rerun()
+        st.rerun()
     else:
         st.sidebar.warning("Please enter the OTP.")
 
